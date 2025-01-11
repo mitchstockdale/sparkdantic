@@ -58,6 +58,7 @@ def test_lower_pyspark_version_raises_import_error(
         '3.3.1',
         '3.4.0',
         '4.0.0',
+        '4.0.0.dev1',
     ],
 )
 def test_at_least_minimum_pyspark_version_does_not_raise_error(

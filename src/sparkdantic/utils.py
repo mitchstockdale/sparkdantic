@@ -1,5 +1,4 @@
-# NOTE: Use this or something similar
-from distutils.version import LooseVersion
+from packaging.version import Version
 
 MINIMUM_PYSPARK_VERSION = '3.3.0'
 
@@ -17,8 +16,8 @@ def require_minimum_pyspark_version() -> None:
     """Raise ImportError if minimum version of PySpark is not installed"""
     if not have_pyspark:
         raise pyspark_import_error
-    else:
-        if LooseVersion(pyspark.__version__) < LooseVersion(MINIMUM_PYSPARK_VERSION):
-            raise ImportError(
-                f'PySpark version {MINIMUM_PYSPARK_VERSION} or newer is required, but found {pyspark.__version__}'
-            )
+
+    if Version(pyspark.__version__) < Version(MINIMUM_PYSPARK_VERSION):
+        raise ImportError(
+            f'PySpark version {MINIMUM_PYSPARK_VERSION} or newer is required, but found {pyspark.__version__}'
+        )
