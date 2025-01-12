@@ -1,6 +1,11 @@
 from packaging.version import Version
 
-MINIMUM_PYSPARK_VERSION = '3.3.0'
+from .exceptions import SparkdanticImportError
+
+MIN_PYSPARK_VERSION = '3.3.0'
+"""Inclusive minimum version of PySpark required"""
+MAX_PYSPARK_VERSION = '4.0.0'
+"""Exclusive maximum version of PySpark supported"""
 
 try:
     import pyspark
@@ -12,12 +17,19 @@ else:
     pyspark_import_error = None  # type: ignore
 
 
-def require_minimum_pyspark_version() -> None:
-    """Raise ImportError if minimum version of PySpark is not installed"""
+def require_pyspark_version_in_range() -> None:
+    """
+    Raise ImportError if:PySpark is not installed or an unsupported version of PySpark is installed
+    """
     if not have_pyspark:
-        raise pyspark_import_error
+        raise SparkdanticImportError(
+            'Pyspark is not installed. Install pyspark using `pip install sparkdantic[pyspark]`'
+        ) from pyspark_import_error
 
-    if Version(pyspark.__version__) < Version(MINIMUM_PYSPARK_VERSION):
-        raise ImportError(
-            f'PySpark version {MINIMUM_PYSPARK_VERSION} or newer is required, but found {pyspark.__version__}'
+    if not (
+        Version(MIN_PYSPARK_VERSION) <= Version(pyspark.__version__) < Version(MAX_PYSPARK_VERSION)
+    ):
+        raise SparkdanticImportError(
+            f'Pyspark version >={MIN_PYSPARK_VERSION},<{MAX_PYSPARK_VERSION} is required, '
+            f'but found {pyspark.__version__}'
         )

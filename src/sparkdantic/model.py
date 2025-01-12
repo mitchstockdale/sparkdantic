@@ -13,10 +13,10 @@ from pydantic.fields import FieldInfo
 from pydantic.json_schema import JsonSchemaMode
 
 from sparkdantic.exceptions import TypeConversionError
-from sparkdantic.utils import have_pyspark, pyspark_import_error, require_minimum_pyspark_version
+from sparkdantic.utils import have_pyspark, pyspark_import_error, require_pyspark_version_in_range
 
 if have_pyspark:
-    require_minimum_pyspark_version()
+    require_pyspark_version_in_range()
     from pyspark.sql.types import DataType, StructType
 
 if sys.version_info > (3, 10):
