@@ -30,6 +30,7 @@ clean-test: ## remove test and coverage artifacts
 	rm -fr .pytest_cache
 	rm -fr .hypothesis
 	rm -fr .mypy_cache
+	rm -fr .nox
 
 
 test: ## run tests (and coverage if configured in setup.cfg) with the default Python
@@ -37,6 +38,13 @@ test: ## run tests (and coverage if configured in setup.cfg) with the default Py
 	@echo RUNNING TESTS...
 	poetry run pytest -v --cov=sparkdantic
 	@echo ✅ Tests have passed! Nice work!
+	@echo -----------------------------------------------------------------
+
+
+matrix-test: ## run tests against multiple environments
+	@echo -----------------------------------------------------------------
+	@echo RUNNING MATRIX TESTS...
+	poetry run nox
 	@echo -----------------------------------------------------------------
 
 
