@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from pyspark.sql.types import IntegerType, LongType, StringType, StructField, StructType
 
 from sparkdantic import SparkModel, create_spark_schema
-from sparkdantic.model import _get_union_type_arg, _is_optional
+from sparkdantic.model import get_union_type_arg, is_optional
 
 
 def test_spark_schema_is_created_for_basemodel():
@@ -69,20 +69,20 @@ def test_safe_casting():
 
 
 @pytest.mark.parametrize(
-    'type_hint, is_optional',
+    'type_hint, optional',
     [
         (int, False),
         (Optional[int], True),
         (Union[int, None], True),
     ],
 )
-def test_optional_type_hints(type_hint, is_optional):
-    assert _is_optional(type_hint) == is_optional
+def test_optional_type_hints(type_hint, optional):
+    assert is_optional(type_hint) == optional
 
 
 def test_type_arg_is_extracted_from_union():
-    assert _get_union_type_arg(Union[int, None]) is int
+    assert get_union_type_arg(Union[int, None]) is int
 
 
 def test_non_union_type_is_returned():
-    assert _get_union_type_arg(int) is int
+    assert get_union_type_arg(int) is int

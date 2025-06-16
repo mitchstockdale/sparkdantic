@@ -1,5 +1,4 @@
 import inspect
-import sys
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -24,6 +23,12 @@ from pydantic.fields import FieldInfo
 from pydantic.json_schema import JsonSchemaMode
 
 from sparkdantic import utils
+from sparkdantic._type_utils import (
+    get_enum_mixin_type,
+    get_union_type_arg,
+    is_optional,
+    is_spark_datatype,
+)
 from sparkdantic.exceptions import TypeConversionError
 
 if utils.have_pyspark:
@@ -32,18 +37,6 @@ if utils.have_pyspark:
 
 if TYPE_CHECKING:
     from pyspark.sql.types import DataType, StructType
-
-if sys.version_info > (3, 10):
-    from types import UnionType  # pragma: no cover
-else:
-    UnionType = Union  # pragma: no cover
-
-if sys.version_info > (3, 11):
-    from enum import EnumType  # pragma: no cover
-else:
-    EnumType = Type[Enum]  # pragma: no cover
-
-MixinType = Union[Type[int], Type[str]]
 
 BaseModelOrSparkModel = Union[BaseModel, 'SparkModel']
 
@@ -154,7 +147,7 @@ def create_json_spark_schema(
 
         field_info_extra = info.json_schema_extra or {}
         override = field_info_extra.get('spark_type')
-        field_type = _get_union_type_arg(info.annotation)
+        field_type = get_union_type_arg(info.annotation)
 
         spark_type: Union[str, Dict[str, Any]]
 
@@ -164,7 +157,7 @@ def create_json_spark_schema(
             elif override is not None:
                 if isinstance(override, str):
                     spark_type = override
-                elif utils.have_pyspark and _is_spark_datatype(override):
+                elif utils.have_pyspark and is_spark_datatype(override):
                     spark_type = override.typeName()
                 else:
                     msg = '`spark_type` override should be a `str` type name (e.g. long)'
@@ -174,7 +167,7 @@ def create_json_spark_schema(
                     raise TypeError(msg)
             elif isinstance(field_type, str):
                 spark_type = field_type
-            elif utils.have_pyspark and _is_spark_datatype(field_type):
+            elif utils.have_pyspark and is_spark_datatype(field_type):
                 spark_type = field_type.typeName()
             else:
                 spark_type = _from_python_type(field_type, info.metadata, safe_casting)
@@ -183,7 +176,7 @@ def create_json_spark_schema(
                 f'Error converting field `{name}` to PySpark type'
             ) from raised_error
 
-        nullable = _is_optional(info.annotation)
+        nullable = is_optional(info.annotation)
         struct_field = {
             'name': name,
             'type': spark_type,
@@ -237,26 +230,6 @@ def _get_spark_type(t: Type) -> str:
     return spark_type
 
 
-def _get_enum_mixin_type(t: EnumType) -> MixinType:
-    """Returns the mixin type of an Enum.
-
-    Args:
-        t (EnumType): The Enum to get the mixin type from.
-
-    Returns:
-        MixinType: The type mixed with the Enum.
-
-    Raises:
-        TypeError: If the mixin type is not supported (int and str are supported).
-    """
-    if issubclass(t, int):
-        return int
-    elif issubclass(t, str):
-        return str
-    else:
-        raise TypeError(f'Enum {t} is not supported. Only int and str mixins are supported.')
-
-
 def _from_python_type(
     type_: Type,
     metadata: list[Any],
@@ -272,7 +245,7 @@ def _from_python_type(
     Returns:
         Union[str, Dict[str, Any]]: The corresponding PySpark data type (dict for complex types).
     """
-    py_type = _get_union_type_arg(type_)
+    py_type = get_union_type_arg(type_)
 
     if _is_base_model(py_type):
         return create_json_spark_schema(py_type, safe_casting)
@@ -286,7 +259,7 @@ def _from_python_type(
     # Convert complex types
     if origin is list:
         element_type = _from_python_type(args[0], [])
-        contains_null = _is_optional(args[0])
+        contains_null = is_optional(args[0])
         return {
             'type': 'array',
             'elementType': element_type,
@@ -296,7 +269,7 @@ def _from_python_type(
     if origin is dict:
         key_type = _from_python_type(args[0], [])
         value_type = _from_python_type(args[1], [])
-        value_contains_null = _is_optional(args[1])
+        value_contains_null = is_optional(args[1])
         return {
             'type': 'map',
             'keyType': key_type,
@@ -319,7 +292,7 @@ def _from_python_type(
         py_type = args[0]
 
     if issubclass(py_type, Enum):
-        py_type = _get_enum_mixin_type(py_type)
+        py_type = get_enum_mixin_type(py_type)
 
     spark_type = _get_spark_type(py_type)
 
@@ -350,30 +323,6 @@ def _is_base_model(cls: Type) -> bool:
         return False
 
 
-def _is_optional(t: Type) -> bool:
-    """Determines if a type is optional.
-
-    Args:
-        t (Type): The Python type to check for nullability.
-
-    Returns:
-        bool: a boolean indicating nullability.
-    """
-    return get_origin(t) in (Union, UnionType) and type(None) in get_args(t)
-
-
-def _get_union_type_arg(t: Type) -> Type:
-    """Returns the inner type from a Union or the type itself if it's not a Union.
-
-    Args:
-        t (Type): The Union type to get the inner type from.
-
-    Returns:
-        Type: The inner type or the original type.
-    """
-    return get_args(t)[0] if get_origin(t) in (Union, UnionType) else t
-
-
 def _get_field_alias(name: str, field_info: FieldInfo, mode: JsonSchemaMode = 'validation') -> str:
     """Returns the field's alias (if defined) or name based on the mode.
     When both alias and serialization_alias are used, serialization_alias takes precedence.
@@ -398,15 +347,3 @@ def _get_field_alias(name: str, field_info: FieldInfo, mode: JsonSchemaMode = 'v
         else:
             alias = validation_alias
     return alias or name
-
-
-def _is_spark_datatype(t: Type) -> bool:
-    """Determines if a type is a PySpark DataType.
-
-    Args:
-        t (Type): The Python type to check.
-
-    Returns:
-        bool: a boolean indicating if the type is a PySpark DataType.
-    """
-    return inspect.isclass(t) and issubclass(t, DataType)
